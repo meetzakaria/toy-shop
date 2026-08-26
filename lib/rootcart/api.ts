@@ -74,12 +74,22 @@ export async function readApi<T>(
       // error.code is the stable contract; the message wording is not, so the code leads.
       const code = payload?.error?.code ?? `http_${response.status}`;
       const message = payload?.error?.message ?? response.statusText;
+      // Logged, not just returned: the caller degrades to an empty section, so without this a
+      // rejected key and an empty catalogue look identical from outside — an empty page either way.
+      console.error(`[rootcart] ${path} → ${code}: ${message}`);
       return { data: null, meta: null, error: `${code}: ${message}` };
     }
 
     return { data: payload.data ?? null, meta: payload.meta ?? null, error: null };
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : "Unknown network error";
+    // fetch rejects the same way for DNS failures, refused connections and TLS problems, and the
+    // cause is the only thing that tells them apart — so it is logged alongside.
+    const cause = (caught as { cause?: { code?: string; message?: string } })?.cause;
+    console.error(
+      `[rootcart] ${url} → could not connect: ${message}`,
+      cause?.code ?? cause?.message ?? "",
+    );
     return { data: null, meta: null, error: `network: ${message}` };
   }
 }
@@ -154,10 +164,17 @@ export async function cartApi<T>(
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
 
   if (!response.ok || !payload?.success) {
-    throw new CartApiError(
-      payload?.error?.code ?? `http_${response.status}`,
-      payload?.error?.message ?? "That did not work. Please try again.",
-    );
+    const code = payload?.error?.code ?? `http_${response.status}`;
+    const message = payload?.error?.message ?? "That did not work. Please try again.";
+    // Browser console, because this is the half a server log never sees: a cart call fails from the
+    // visitor's browser with an Origin header the server-side reads never send.
+    console.error(`[rootcart cart] ${path} → ${code}: ${message}`);
+    if (code === "origin_not_allowed") {
+      console.error(
+        `[rootcart cart] Add ${window.location.origin} to this key's allowed origins in RootCart → Settings → Developers.`,
+      );
+    }
+    throw new CartApiError(code, message);
   }
 
   // The token arrives in the body as well as the header; the body is used because a cross-origin
