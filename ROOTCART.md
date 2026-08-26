@@ -27,7 +27,69 @@ returns relative image URLs, which resolve against *this* site and 404.
 
 ---
 
-## 2. Custom fields this template reads
+## 2. Deploying it — read this before you do
+
+Everything above is enough for `next dev`. Deploying has one trap that costs a day if you meet it
+cold, so it gets its own section.
+
+### Set four variables, not two
+
+```
+NEXT_PUBLIC_ROOTCART_API   https://api.rootcart.shop/api/v1/storefront
+NEXT_PUBLIC_ROOTCART_KEY   rc_pk_...
+ROOTCART_API               https://api.rootcart.shop/api/v1/storefront   # same value, no prefix
+ROOTCART_KEY               rc_pk_...                                     # same value, no prefix
+```
+
+The unprefixed pair is not a duplicate. `NEXT_PUBLIC_*` is not read at runtime at all — Next replaces
+the text `process.env.NEXT_PUBLIC_ROOTCART_API` with a string literal while compiling, even inside a
+function, so whatever the *build* saw is frozen for the life of that deployment. A name without the
+prefix is never substituted, so `serverApiBase()` in [lib/rootcart/env.ts](lib/rootcart/env.ts) reads
+it fresh on every request and prefers it. Catalogue pages then survive a build that had no
+credentials. The browser cart cannot — a browser has no environment to read — which is why both pairs
+exist.
+
+### The `NEXT_PUBLIC_` pair must NOT be marked secret
+
+Hosting platforms let you mark a variable "Secret" or "Sensitive", and they then withhold it from the
+build and expose it only at runtime. For a `NEXT_PUBLIC_` variable that is fatal and completely
+silent: the name is present in `process.env` at runtime, so every dashboard and health check says it
+is set, while the literal compiled into the bundle is empty. The cart fails with `not_configured` and
+nothing anywhere says why.
+
+| variable | mark it | why |
+|---|---|---|
+| `NEXT_PUBLIC_ROOTCART_API` | plaintext / config | needed at build; marking it secret buys nothing, since the value ships to every browser regardless |
+| `NEXT_PUBLIC_ROOTCART_KEY` | plaintext / config | same |
+| `ROOTCART_API` | secret is fine | read at runtime, never sent to a browser |
+| `ROOTCART_KEY` | secret is fine | same |
+
+Two things worth knowing: most platforms will not let you convert a secret variable to plaintext, so
+delete it and create it again; and changing a variable does not fix a deployment that is already
+built — a new build is required.
+
+### Check it from the outside
+
+Open `/rootcart-check` on the deployed site. It reports, in order, which commit is live, whether the
+credentials are readable at runtime and in the bundle *separately*, whether the API host answers,
+whether the key is accepted, and whether the store has anything to sell. Those five failures all look
+identical from the front page — an empty shop — which is the whole reason the route exists. Delete it
+once you are confident; it exposes nothing (the key is masked, the base URL is public by design).
+
+### Pages that must not be prerendered
+
+The home page and `/collections` are `force-dynamic` on purpose. They are the two pages that are
+useless without a catalogue, and build time is exactly when credentials are least likely to be
+readable. A page prerendered without data is already on the CDN, and regenerating it is best-effort,
+so it can stay blank long after the connection is healthy. Rendering them per request costs the
+CDN-cached HTML and nothing else — the reads inside are still cached for a minute and tagged.
+
+`products/[slug]` and `category/[slug]` keep `revalidate`, because an unknown slug renders on demand
+anyway and heals itself.
+
+---
+
+## 3. Custom fields this template reads
 
 RootCart models what every shop has. Everything else is a custom field the seller defines in
 **Content → Custom fields**, under the `shop` namespace. All are optional — the site renders without
@@ -55,7 +117,7 @@ anything else falls back to a palette colour.
 
 ---
 
-## 3. Collections drive the home page
+## 4. Collections drive the home page
 
 Create these in **Content → Collections**. Each is optional; a missing one falls back to a slice of
 the catalogue, so a new store still looks full.
@@ -71,7 +133,7 @@ Editing a collection's rules changes the shelf. Nobody redeploys this site.
 
 ---
 
-## 4. Variants are the option picker
+## 5. Variants are the option picker
 
 A product's variants become its swatches, labelled with whatever the seller typed — "Black", "1 kg",
 "Blue / L". A variant with tracked stock at zero renders disabled and cannot be added.
@@ -86,7 +148,7 @@ Two limits worth knowing:
 
 ---
 
-## 5. What the template does not do
+## 6. What the template does not do
 
 - **Order tracking is limited to this device.** RootCart has no public order-lookup endpoint, and the
   scope that would read one is deliberately not browser-safe. `/tracking` shows the order placed in
@@ -99,7 +161,7 @@ Two limits worth knowing:
 
 ---
 
-## 6. Where things live
+## 7. Where things live
 
 | File | Does what |
 |---|---|
@@ -118,7 +180,7 @@ pushes new prices without a redeploy.
 
 ---
 
-## 7. Things that changed, and why
+## 8. Things that changed, and why
 
 Worth knowing if you compare against the original template:
 
