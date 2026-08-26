@@ -12,6 +12,16 @@ export const metadata: Metadata = {
   description: "Browse every collection in the store.",
 };
 
+/**
+ * Revalidated on a timer at the route level, not left to the fetches inside it.
+ *
+ * <p>Without this the page is only revalidated because a cached `fetch` asked for it — so a build that
+ * ran while the API was unreachable produces a page with no fetches at all, which Next then treats as
+ * fully static and never regenerates. The shop stays frozen and empty until someone redeploys, long
+ * after the API came back. Declaring it here means the page always heals itself.</p>
+ */
+export const revalidate = 60;
+
 export default async function CollectionsPage() {
   const [categories, products] = await Promise.all([getCategories(), getAllProducts()]);
 

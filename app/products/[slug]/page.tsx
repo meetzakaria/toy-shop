@@ -21,6 +21,16 @@ import { formatPrice } from "@/lib/format";
  * <p>Products added later still resolve — `dynamicParams` defaults to true, so an unknown slug is
  * rendered on first request and cached rather than 404ing until the next deploy.</p>
  */
+/**
+ * Revalidated on a timer at the route level, not left to the fetches inside it.
+ *
+ * <p>Without this the page is only revalidated because a cached `fetch` asked for it — so a build that
+ * ran while the API was unreachable produces a page with no fetches at all, which Next then treats as
+ * fully static and never regenerates. The shop stays frozen and empty until someone redeploys, long
+ * after the API came back. Declaring it here means the page always heals itself.</p>
+ */
+export const revalidate = 60;
+
 export async function generateStaticParams() {
   const products = await getAllProducts();
   return products.map((product) => ({ slug: product.slug }));
