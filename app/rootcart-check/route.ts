@@ -91,12 +91,26 @@ export async function GET() {
       : "Add them in Vercel → Settings → Environment Variables with Production ticked, then redeploy.",
   });
 
+  /**
+   * The literal values this build was compiled with, quoted so they can be compared character for
+   * character against the dashboard.
+   *
+   * <p>Reported even when empty, and including SITE_URL, because "empty" and "set to the wrong thing"
+   * need different fixes and look identical from outside. A local development value appearing here
+   * means the build did receive variables — just not the ones intended.</p>
+   */
+  const bakedIn = [
+    `NEXT_PUBLIC_ROOTCART_API="${apiBase}"`,
+    `NEXT_PUBLIC_ROOTCART_KEY="${maskKey(apiKey)}"`,
+    `NEXT_PUBLIC_SITE_URL="${process.env.NEXT_PUBLIC_SITE_URL ?? ""}"`,
+  ].join(" · ");
+
   steps.push({
     step: "1b. Environment baked into the bundle (browser cart)",
     ok: buildTimeOk,
     detail: buildTimeOk
-      ? `API base: ${apiBase} · key: ${maskKey(apiKey)}`
-      : problem ?? "Empty in the compiled output — this build ran before the variables were set.",
+      ? bakedIn
+      : `${problem ?? "Empty in the compiled output."} — what this build actually received: ${bakedIn}`,
     fix: buildTimeOk
       ? undefined
       : "A NEW BUILD is required; changing the variable is not enough. Push a commit to main, or Redeploy with 'Use existing Build Cache' UNCHECKED. Until then product pages work but the cart will not.",
