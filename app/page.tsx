@@ -12,14 +12,22 @@ import { getHomeData } from "@/lib/rootcart/home";
 const HERO_EYEBROWS = ["Deal of the week", "New season pick", "Editor's choice", "Staff favourite"];
 
 /**
- * Revalidated on a timer at the route level, not left to the fetches inside it.
+ * Rendered per request rather than prerendered at build time.
  *
- * <p>Without this the page is only revalidated because a cached `fetch` asked for it — so a build that
- * ran while the API was unreachable produces a page with no fetches at all, which Next then treats as
- * fully static and never regenerates. The shop stays frozen and empty until someone redeploys, long
- * after the API came back. Declaring it here means the page always heals itself.</p>
+ * <p>This page is the store's whole catalogue at a glance, so it is the one page that is useless
+ * without data — and build time is exactly when data is least likely to be available. Hosting
+ * platforms withhold environment variables marked "secret" or "sensitive" from the build and expose
+ * them only at runtime, which means the build can be the one moment the API is unreachable. A page
+ * prerendered in that moment is a permanently empty shop: the HTML is already on the CDN, and
+ * regenerating it is best-effort, so the store can stay blank long after the connection is fine.</p>
+ *
+ * <p>Rendering on demand removes that whole failure mode. It is not the cost it looks like: the
+ * catalogue reads inside are still cached for a minute and tagged, so a
+ * burst of visitors shares one round trip to RootCart and a webhook can still push new prices
+ * instantly. What is given up is CDN-cached HTML; what is bought is a storefront that cannot be
+ * frozen empty by a bad minute during a deploy.</p>
  */
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const home = await getHomeData();
