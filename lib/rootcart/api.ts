@@ -1,4 +1,11 @@
-import { apiBase, apiKey, isConfigured } from "@/lib/rootcart/env";
+import {
+  apiBase,
+  apiKey,
+  isConfigured,
+  serverApiBase,
+  serverApiKey,
+  serverIsConfigured,
+} from "@/lib/rootcart/env";
 import type { ApiEnvelope, ApiPageMeta } from "@/lib/rootcart/types";
 
 /**
@@ -50,17 +57,18 @@ export async function readApi<T>(
   path: string,
   options: ReadOptions = {},
 ): Promise<ReadResult<T>> {
-  if (!isConfigured) {
+  // Runtime lookup, not the build-time literal — see serverApiBase for why the distinction matters.
+  if (!serverIsConfigured()) {
     return { data: null, meta: null, error: "RootCart is not configured." };
   }
 
-  const url = `${apiBase}${path}`;
+  const url = `${serverApiBase()}${path}`;
 
   try {
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
-        "X-RootCart-Key": apiKey,
+        "X-RootCart-Key": serverApiKey(),
       },
       next: {
         revalidate: options.revalidate ?? REVALIDATE.catalog,

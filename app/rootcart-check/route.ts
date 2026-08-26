@@ -1,4 +1,11 @@
-import { apiBase, apiKey, configProblem, isConfigured } from "@/lib/rootcart/env";
+import {
+  apiBase,
+  apiKey,
+  configProblem,
+  serverApiBase,
+  serverApiKey,
+  serverIsConfigured,
+} from "@/lib/rootcart/env";
 
 /**
  * A one-URL health check for the RootCart connection.
@@ -65,20 +72,37 @@ export async function GET() {
         : `No NEXT_PUBLIC_ variable reached this build at all. If env above is "preview", the variables are scoped to Production only — either add them to Preview as well, or open the Production deployment. Vercel scopes variables per environment.`,
   });
 
-  // ---------------------------------------------------------------- 1. env reached the build
+  // ---------------------------------------------------------------- 1. env, both ways
+  // Reported separately because they disagree in exactly one situation, and that situation is the
+  // hardest to diagnose: a variable set after the last build is live at runtime and stale in the
+  // bundle. Server pages then work while the browser cart does not.
   const problem = configProblem();
+  const buildTimeOk = apiBase !== "" && apiKey !== "" && !problem;
+  const runtimeOk = serverIsConfigured();
+
   steps.push({
-    step: "1. Environment variables",
-    ok: isConfigured && !problem,
-    detail: problem
-      ? problem
-      : `API base: ${apiBase} · key: ${maskKey(apiKey)}`,
-    fix: problem
-      ? "Set them in Vercel → Settings → Environment Variables (Production), then REDEPLOY. NEXT_PUBLIC_ values are baked in at build time, so an existing deployment keeps the old values."
-      : undefined,
+    step: "1a. Environment at runtime (server pages, catalogue)",
+    ok: runtimeOk,
+    detail: runtimeOk
+      ? `API base: ${serverApiBase()} · key: ${maskKey(serverApiKey())}`
+      : "Not readable at runtime — the variables are absent from this deployment entirely.",
+    fix: runtimeOk
+      ? undefined
+      : "Add them in Vercel → Settings → Environment Variables with Production ticked, then redeploy.",
   });
 
-  if (!isConfigured) {
+  steps.push({
+    step: "1b. Environment baked into the bundle (browser cart)",
+    ok: buildTimeOk,
+    detail: buildTimeOk
+      ? `API base: ${apiBase} · key: ${maskKey(apiKey)}`
+      : problem ?? "Empty in the compiled output — this build ran before the variables were set.",
+    fix: buildTimeOk
+      ? undefined
+      : "A NEW BUILD is required; changing the variable is not enough. Push a commit to main, or Redeploy with 'Use existing Build Cache' UNCHECKED. Until then product pages work but the cart will not.",
+  });
+
+  if (!runtimeOk) {
     return Response.json({ healthy: false, steps }, { status: 503 });
   }
 
@@ -87,8 +111,8 @@ export async function GET() {
   let networkError: string | null = null;
 
   try {
-    response = await fetch(`${apiBase}/config`, {
-      headers: { Accept: "application/json", "X-RootCart-Key": apiKey },
+    response = await fetch(`${serverApiBase()}/config`, {
+      headers: { Accept: "application/json", "X-RootCart-Key": serverApiKey() },
       cache: "no-store",
     });
   } catch (caught) {
@@ -153,8 +177,8 @@ export async function GET() {
   let productCount: number | null = null;
   if (payload?.success) {
     try {
-      const products = await fetch(`${apiBase}/products?limit=3`, {
-        headers: { Accept: "application/json", "X-RootCart-Key": apiKey },
+      const products = await fetch(`${serverApiBase()}/products?limit=3`, {
+        headers: { Accept: "application/json", "X-RootCart-Key": serverApiKey() },
         cache: "no-store",
       });
       const body = (await products.json()) as { data?: unknown[] };

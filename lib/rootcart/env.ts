@@ -45,6 +45,34 @@ export const usesSecretKey = apiKey.startsWith("rc_sk_");
  */
 export const hasMultipleUrls = apiBase.includes(",") || /\s/.test(apiBase);
 
+/**
+ * The same two values, read when they are needed rather than when the bundle was built.
+ *
+ * <p>Next replaces `process.env.NEXT_PUBLIC_*` with a string literal at build time so the browser can
+ * see it. That is required for the cart, which runs in the browser — but it also freezes the value
+ * into the compiled output. Set a variable after a build and the server keeps serving the old literal,
+ * with no error: the site simply renders as if the store were empty.</p>
+ *
+ * <p>Server code has no such constraint. Reading inside a function keeps the lookup at runtime, where
+ * the platform's current value lives, so catalogue pages recover as soon as the variable is set —
+ * without waiting for a rebuild. The browser half still needs one, and always will.</p>
+ */
+export function serverApiBase(): string {
+  const raw = process.env.NEXT_PUBLIC_ROOTCART_API ?? "";
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  // A comma-separated pair is a config mistake, not a fallback list — refuse it rather than build a
+  // URL that cannot resolve.
+  return trimmed.includes(",") || /\s/.test(trimmed) ? "" : trimmed;
+}
+
+export function serverApiKey(): string {
+  return (process.env.NEXT_PUBLIC_ROOTCART_KEY ?? "").trim();
+}
+
+export function serverIsConfigured(): boolean {
+  return serverApiBase() !== "" && serverApiKey() !== "";
+}
+
 export function configProblem(): string | null {
   if (hasMultipleUrls) {
     return `NEXT_PUBLIC_ROOTCART_API must be one URL, but it contains a comma or a space: "${apiBase}". Keep a single value, e.g. https://api.rootcart.shop/api/v1/storefront`;
