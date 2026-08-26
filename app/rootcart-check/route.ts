@@ -84,11 +84,13 @@ export async function GET() {
     step: "1a. Environment at runtime (server pages, catalogue)",
     ok: runtimeOk,
     detail: runtimeOk
-      ? `API base: ${serverApiBase()} · key: ${maskKey(serverApiKey())}`
-      : "Not readable at runtime — the variables are absent from this deployment entirely.",
+      ? `API base: ${serverApiBase()} · key: ${maskKey(serverApiKey())} · source: ${
+          process.env.ROOTCART_API ? "ROOTCART_API (runtime)" : "NEXT_PUBLIC_ROOTCART_API (compiled in)"
+        }`
+      : `Nothing readable. ROOTCART_API="${process.env.ROOTCART_API ?? ""}" · NEXT_PUBLIC_ROOTCART_API="${apiBase}"`,
     fix: runtimeOk
       ? undefined
-      : "Add them in Vercel → Settings → Environment Variables with Production ticked, then redeploy.",
+      : "Add ROOTCART_API and ROOTCART_KEY — same two values, WITHOUT the NEXT_PUBLIC_ prefix. Those are read at runtime, so they work even when the platform keeps a variable out of the build, and they fix the catalogue without a rebuild.",
   });
 
   /**

@@ -7,6 +7,12 @@
  * - `NEXT_PUBLIC_ROOTCART_KEY` — the publishable key (`rc_pk_…`) from
  *   Settings → Developers in the RootCart dashboard
  *
+ * Optionally, the same two values under `ROOTCART_API` and `ROOTCART_KEY`, without the prefix. The
+ * server prefers those because a name without `NEXT_PUBLIC_` is read at runtime instead of being
+ * compiled in, so catalogue pages keep working when a platform withholds a variable from the build
+ * (anything marked "sensitive" or "secret") or when it was set after the last build. The browser cart
+ * can only ever use the `NEXT_PUBLIC_` pair — a browser has no environment to read.
+ *
  * Both are `NEXT_PUBLIC_` because the cart runs in the browser. That is safe for a publishable
  * key and only a publishable key: it is readable by anyone who opens the site, which is why
  * RootCart binds it to an origin allowlist. A secret key (`rc_sk_…`) must never appear here —
@@ -57,16 +63,27 @@ export const hasMultipleUrls = apiBase.includes(",") || /\s/.test(apiBase);
  * the platform's current value lives, so catalogue pages recover as soon as the variable is set —
  * without waiting for a rebuild. The browser half still needs one, and always will.</p>
  */
-export function serverApiBase(): string {
-  const raw = process.env.NEXT_PUBLIC_ROOTCART_API ?? "";
-  const trimmed = raw.trim().replace(/\/+$/, "");
+function clean(raw: string | undefined): string {
+  const trimmed = (raw ?? "").trim().replace(/\/+$/, "");
   // A comma-separated pair is a config mistake, not a fallback list — refuse it rather than build a
   // URL that cannot resolve.
   return trimmed.includes(",") || /\s/.test(trimmed) ? "" : trimmed;
 }
 
+export function serverApiBase(): string {
+  // ROOTCART_API first, and it is read at runtime for a specific reason: Next substitutes every
+  // `process.env.NEXT_PUBLIC_*` with a literal while compiling, so a NEXT_PUBLIC_ value that was not
+  // available to the build is frozen empty for the life of that deployment. Hosting platforms that
+  // mark a variable "sensitive" or "secret" withhold it from the build and expose it only at runtime,
+  // which produces exactly that: present in process.env, empty in the compiled output. A name without
+  // the prefix is never substituted, so it survives.
+  const runtime = clean(process.env.ROOTCART_API);
+  return runtime !== "" ? runtime : clean(process.env.NEXT_PUBLIC_ROOTCART_API);
+}
+
 export function serverApiKey(): string {
-  return (process.env.NEXT_PUBLIC_ROOTCART_KEY ?? "").trim();
+  const runtime = (process.env.ROOTCART_KEY ?? "").trim();
+  return runtime !== "" ? runtime : (process.env.NEXT_PUBLIC_ROOTCART_KEY ?? "").trim();
 }
 
 export function serverIsConfigured(): boolean {
