@@ -29,12 +29,32 @@ export const apiKey = RAW_KEY.trim();
  * developer who clones this repo and runs `npm run dev` before writing `.env.local` sees the
  * site render with a clear empty state instead of a stack trace.
  */
-export const isConfigured = apiBase !== "" && apiKey !== "";
+export const isConfigured =
+  apiBase !== "" && apiKey !== "" && !apiBase.includes(",") && !/\s/.test(apiBase);
 
 /** A secret key in a NEXT_PUBLIC_ variable is a leak, not a misconfiguration — say so loudly. */
 export const usesSecretKey = apiKey.startsWith("rc_sk_");
 
+/**
+ * True when someone put more than one URL in the variable.
+ *
+ * <p>Worth its own check because it fails silently and confusingly: the whole string becomes the base
+ * URL, every fetch goes to an address that cannot resolve, and the site renders empty exactly as if
+ * the store had no products. Some hosting panels do accept comma-separated domains, which is where
+ * the habit comes from — this variable is a single URL.</p>
+ */
+export const hasMultipleUrls = apiBase.includes(",") || /\s/.test(apiBase);
+
 export function configProblem(): string | null {
+  if (hasMultipleUrls) {
+    return `NEXT_PUBLIC_ROOTCART_API must be one URL, but it contains a comma or a space: "${apiBase}". Keep a single value, e.g. https://api.rootcart.shop/api/v1/storefront`;
+  }
+  if (apiBase !== "" && !/^https?:\/\//.test(apiBase)) {
+    return `NEXT_PUBLIC_ROOTCART_API must start with https:// — got "${apiBase}"`;
+  }
+  if (apiBase !== "" && !apiBase.includes("/api/v1/storefront")) {
+    return `NEXT_PUBLIC_ROOTCART_API looks incomplete: "${apiBase}". It needs the full base, ending in /api/v1/storefront`;
+  }
   if (usesSecretKey) {
     return "NEXT_PUBLIC_ROOTCART_KEY holds a secret key (rc_sk_…). Revoke it in RootCart and use a publishable key (rc_pk_…) — anything NEXT_PUBLIC_ is visible to every visitor.";
   }
