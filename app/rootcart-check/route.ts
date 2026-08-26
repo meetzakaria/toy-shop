@@ -35,6 +35,36 @@ export async function GET() {
   const steps: Step[] = [];
   const started = Date.now();
 
+  /**
+   * Which deployment is answering, according to the host itself.
+   *
+   * <p>This is the difference between guessing and knowing. `VERCEL_ENV` says whether this build is
+   * production or preview, and environment variables are scoped per environment — a Production-scoped
+   * variable is simply absent from a Preview build, which looks identical to never having set it.</p>
+   */
+  const platform = {
+    vercelEnv: process.env.VERCEL_ENV ?? "(not on Vercel)",
+    vercelUrl: process.env.VERCEL_URL ?? "(none)",
+    branch: process.env.VERCEL_GIT_COMMIT_REF ?? "(none)",
+    commit: (process.env.VERCEL_GIT_COMMIT_SHA ?? "(none)").slice(0, 7),
+    /** Names only, never values — proves whether they arrived at all. */
+    rootcartVarsSeen: Object.keys(process.env)
+      .filter((name) => name.startsWith("NEXT_PUBLIC_"))
+      .sort(),
+  };
+
+  steps.push({
+    step: "0. Which deployment is this",
+    ok: platform.rootcartVarsSeen.length > 0,
+    detail: `env=${platform.vercelEnv} · branch=${platform.branch} · commit=${platform.commit} · NEXT_PUBLIC_ vars present: ${
+      platform.rootcartVarsSeen.length > 0 ? platform.rootcartVarsSeen.join(", ") : "NONE"
+    }`,
+    fix:
+      platform.rootcartVarsSeen.length > 0
+        ? undefined
+        : `No NEXT_PUBLIC_ variable reached this build at all. If env above is "preview", the variables are scoped to Production only — either add them to Preview as well, or open the Production deployment. Vercel scopes variables per environment.`,
+  });
+
   // ---------------------------------------------------------------- 1. env reached the build
   const problem = configProblem();
   steps.push({
@@ -154,6 +184,7 @@ export async function GET() {
       healthy,
       checkedAt: new Date().toISOString(),
       tookMs: Date.now() - started,
+      platform,
       summary: healthy
         ? "Connected. If the site still looks empty, redeploy so pages re-render with fresh data."
         : `First failure: ${steps.find((entry) => !entry.ok)?.step}`,
