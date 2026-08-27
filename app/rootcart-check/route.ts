@@ -30,6 +30,19 @@ type Step = {
   fix?: string;
 };
 
+/**
+ * A `NEXT_PUBLIC_` value as the platform holds it *now*, not as the build compiled it.
+ *
+ * <p>Next substitutes the text `process.env.NEXT_PUBLIC_X` with a string literal while compiling, so
+ * every ordinary read of one of these reports the build's value forever. Indexing with a computed key
+ * is not substitutable — the name is not known until the code runs — so this is a genuine runtime
+ * lookup, and comparing the two is what distinguishes "never set" from "set after this build".</p>
+ */
+function readAtRuntime(name: string): string {
+  const bag = process.env as Record<string, string | undefined>;
+  return (bag[name] ?? "").trim();
+}
+
 /** Enough of the key to recognise which one is deployed, not enough to use it. */
 function maskKey(key: string): string {
   if (!key) return "(empty)";
@@ -107,15 +120,47 @@ export async function GET() {
     `NEXT_PUBLIC_SITE_URL="${process.env.NEXT_PUBLIC_SITE_URL ?? ""}"`,
   ].join(" · ");
 
+  /**
+   * The same three names as the platform holds them now.
+   *
+   * <p>Reported beside the compiled values because the two disagreeing is itself the diagnosis, and
+   * it is the one case that looks like a configuration mistake but is not: the variables are correct
+   * in the dashboard, correct at runtime, and stale in the bundle. That happens when the build reused
+   * a cache — pushing a commit does not clear it — or simply predates the variables being set.</p>
+   */
+  const liveNames = [
+    "NEXT_PUBLIC_ROOTCART_API",
+    "NEXT_PUBLIC_ROOTCART_KEY",
+    "NEXT_PUBLIC_SITE_URL",
+  ] as const;
+
+  const live = liveNames.map((name) => {
+    const value = readAtRuntime(name);
+    return `${name}="${name.endsWith("_KEY") ? maskKey(value) : value}"`;
+  }).join(" · ");
+
+  /** True when the platform has a value the compiled output does not — a stale build, not a missing setting. */
+  const stale =
+    (readAtRuntime("NEXT_PUBLIC_ROOTCART_API") !== "" && apiBase === "") ||
+    (readAtRuntime("NEXT_PUBLIC_ROOTCART_KEY") !== "" && apiKey === "") ||
+    (readAtRuntime("NEXT_PUBLIC_SITE_URL") !== "" &&
+      readAtRuntime("NEXT_PUBLIC_SITE_URL") !== (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim());
+
   steps.push({
     step: "1b. Environment baked into the bundle (browser cart)",
     ok: buildTimeOk,
     detail: buildTimeOk
       ? bakedIn
-      : `${problem ?? "Empty in the compiled output."} — what this build actually received: ${bakedIn}`,
+      : `${
+          stale
+            ? "The platform HAS these values, but this build does not — the compiled bundle is stale."
+            : problem ?? "Empty in the compiled output."
+        } — compiled into this build: ${bakedIn} — held by the platform now: ${live}`,
     fix: buildTimeOk
       ? undefined
-      : "A NEW BUILD is required; changing the variable is not enough. Push a commit to main, or Redeploy with 'Use existing Build Cache' UNCHECKED. Until then product pages work but the cart will not.",
+      : stale
+        ? "Redeploy with 'Use existing Build Cache' UNCHECKED. Nothing is wrong with the variables — this build simply reused compiled output from before they were set, and pushing a commit does NOT clear that cache. Until then product pages work but the cart will not."
+        : "A NEW BUILD is required; changing the variable is not enough. Push a commit to main, or Redeploy with 'Use existing Build Cache' UNCHECKED. Until then product pages work but the cart will not.",
   });
 
   if (!runtimeOk) {

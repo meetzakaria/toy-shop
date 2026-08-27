@@ -68,6 +68,13 @@ Two things worth knowing: most platforms will not let you convert a secret varia
 delete it and create it again; and changing a variable does not fix a deployment that is already
 built — a new build is required.
 
+**And a new build does not mean a new commit.** Pushing triggers a build, but the build reuses its
+cache, and the cache key does not include the `NEXT_PUBLIC_` values. A commit that changes no code —
+a documentation edit, say — will therefore recompile almost nothing and hand back chunks with the
+*old* literals still inlined. The dashboard is right, the runtime is right, the commit is new, and the
+bundle is stale. Use **Redeploy with "Use existing Build Cache" unchecked** instead; `/rootcart-check`
+names this case explicitly when it sees it.
+
 ### Check it from the outside
 
 Open `/rootcart-check` on the deployed site. It reports, in order, which commit is live, whether the
