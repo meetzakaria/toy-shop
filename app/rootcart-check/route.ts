@@ -1,3 +1,4 @@
+import { publishableCredentials } from "@/lib/rootcart/credentials";
 import {
   apiBase,
   apiKey,
@@ -90,8 +91,19 @@ export async function GET() {
   // hardest to diagnose: a variable set after the last build is live at runtime and stale in the
   // bundle. Server pages then work while the browser cart does not.
   const problem = configProblem();
-  const buildTimeOk = apiBase !== "" && apiKey !== "" && !problem;
+  const compiledIn = apiBase !== "" && apiKey !== "" && !problem;
   const runtimeOk = serverIsConfigured();
+
+  /**
+   * Whether the browser will get credentials, from either source.
+   *
+   * <p>The compiled-in pair being empty stopped meaning "the cart is broken" once the root layout
+   * started handing the pair down from the server. Reporting it as a failure anyway sent the last
+   * person down a two-day detour, so the step now asks the question that actually matters — will the
+   * cart have credentials — and mentions the compiled state only as context.</p>
+   */
+  const handedDown = publishableCredentials() !== null;
+  const cartOk = handedDown || compiledIn;
 
   steps.push({
     step: "1a. Environment at runtime (server pages, catalogue)",
@@ -147,20 +159,24 @@ export async function GET() {
       readAtRuntime("NEXT_PUBLIC_SITE_URL") !== (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim());
 
   steps.push({
-    step: "1b. Environment baked into the bundle (browser cart)",
-    ok: buildTimeOk,
-    detail: buildTimeOk
-      ? bakedIn
-      : `${
-          stale
-            ? "The platform HAS these values, but this build does not — the compiled bundle is stale."
-            : problem ?? "Empty in the compiled output."
-        } — compiled into this build: ${bakedIn} — held by the platform now: ${live}`,
-    fix: buildTimeOk
+    step: "1b. Credentials the browser cart will use",
+    ok: cartOk,
+    detail: handedDown
+      ? `Handed down by the server at runtime${
+          compiledIn ? ", and also compiled in" : " (the compiled-in pair is empty, which is fine)"
+        }. Compiled into this build: ${bakedIn}`
+      : compiledIn
+        ? `Compiled into this build: ${bakedIn}. The server is not handing a pair down — check that ROOTCART_KEY holds a publishable key (rc_pk_), not a secret one.`
+        : `${
+            stale
+              ? "The platform HAS these values, but this build does not — the compiled bundle is stale."
+              : problem ?? "Empty in the compiled output."
+          } — compiled into this build: ${bakedIn} — held by the platform now: ${live}`,
+    fix: cartOk
       ? undefined
       : stale
-        ? "Redeploy with 'Use existing Build Cache' UNCHECKED. Nothing is wrong with the variables — this build simply reused compiled output from before they were set, and pushing a commit does NOT clear that cache. Until then product pages work but the cart will not."
-        : "A NEW BUILD is required; changing the variable is not enough. Push a commit to main, or Redeploy with 'Use existing Build Cache' UNCHECKED. Until then product pages work but the cart will not.",
+        ? "Redeploy with 'Use existing Build Cache' UNCHECKED, or set ROOTCART_API and ROOTCART_KEY so the server can hand the pair down without a rebuild. Pushing a commit does NOT clear the build cache."
+        : "Set ROOTCART_API and ROOTCART_KEY (no NEXT_PUBLIC_ prefix). The server reads those on every request and hands them to the cart, so the cart stops depending on what the build happened to receive. The key must be a publishable one (rc_pk_) — a secret key is deliberately never sent to a browser.",
   });
 
   if (!runtimeOk) {
