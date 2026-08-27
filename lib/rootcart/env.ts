@@ -7,6 +7,10 @@
  * - `NEXT_PUBLIC_ROOTCART_KEY` — the publishable key (`rc_pk_…`) from
  *   Settings → Developers in the RootCart dashboard
  *
+ * The browser half of this lives in `browser-credentials.ts` and the server half that feeds it in
+ * `credentials.ts` — split apart because a module imported by a client component loses every
+ * unprefixed `process.env` read, silently.
+ *
  * Optionally, the same two values under `ROOTCART_API` and `ROOTCART_KEY`, without the prefix. The
  * server prefers those because a name without `NEXT_PUBLIC_` is read at runtime instead of being
  * compiled in, so catalogue pages keep working when a platform withholds a variable from the build

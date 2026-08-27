@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo } from "react";
+import { setBrowserCredentials } from "@/lib/rootcart/browser-credentials";
 import type { Category } from "@/lib/types";
 
 /**
@@ -37,12 +38,22 @@ const StoreContext = createContext<StoreContextValue>({ categories: [], brand: n
 export function StoreProvider({
   categories,
   brand,
+  credentials,
   children,
 }: {
   categories: Category[];
   brand: StoreBrand | null;
+  /** Read from the environment on the server, so the cart does not depend on the build. */
+  credentials: { apiBase: string; apiKey: string } | null;
   children: React.ReactNode;
 }) {
+  // Applied during render rather than in an effect, because the first cart call can be triggered by a
+  // click that lands before effects have flushed. It writes a module variable, not React state, and
+  // the same values produce the same result, so re-running it is a no-op.
+  if (credentials) {
+    setBrowserCredentials(credentials.apiBase, credentials.apiKey);
+  }
+
   const value = useMemo<StoreContextValue>(() => ({ categories, brand }), [categories, brand]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

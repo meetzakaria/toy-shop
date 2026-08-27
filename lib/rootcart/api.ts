@@ -1,11 +1,9 @@
 import {
-  apiBase,
-  apiKey,
-  isConfigured,
-  serverApiBase,
-  serverApiKey,
-  serverIsConfigured,
-} from "@/lib/rootcart/env";
+  browserApiBase,
+  browserApiKey,
+  browserIsConfigured,
+} from "@/lib/rootcart/browser-credentials";
+import { serverApiBase, serverApiKey, serverIsConfigured } from "@/lib/rootcart/env";
 import type { ApiEnvelope, ApiPageMeta } from "@/lib/rootcart/types";
 
 /**
@@ -149,18 +147,20 @@ export async function cartApi<T>(
   path: string,
   init: RequestInit & { idempotencyKey?: string } = {},
 ): Promise<T> {
-  if (!isConfigured) {
+  // The runtime pair, which the root layout fills from the server, falling back to whatever the
+  // build compiled in. See setBrowserCredentials for why the build cannot be relied on alone.
+  if (!browserIsConfigured()) {
     throw new CartApiError("not_configured", "This store is not connected to RootCart yet.");
   }
 
   const session = readCartSession();
   const { idempotencyKey, ...rest } = init;
 
-  const response = await fetch(`${apiBase}${path}`, {
+  const response = await fetch(`${browserApiBase()}${path}`, {
     ...rest,
     headers: {
       Accept: "application/json",
-      "X-RootCart-Key": apiKey,
+      "X-RootCart-Key": browserApiKey(),
       ...(rest.body ? { "Content-Type": "application/json" } : {}),
       ...(session ? { "X-RootCart-Cart-Session": session } : {}),
       ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),

@@ -8,6 +8,7 @@ import { Header } from "@/components/header";
 import { CartProvider } from "@/lib/cart-context";
 import { getCategories } from "@/lib/rootcart/catalog";
 import { getSite, getStoreBrand } from "@/lib/rootcart/site";
+import { publishableCredentials } from "@/lib/rootcart/credentials";
 import { StoreProvider } from "@/lib/store-context";
 
 const bodyFont = Inter({
@@ -62,7 +63,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${bodyFont.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
-        <StoreProvider categories={categories} brand={brand}>
+        <StoreProvider
+          categories={categories}
+          brand={brand}
+          credentials={publishableCredentials()}
+        >
           <CartProvider>
             <Header />
             <main className="flex-1">{children}</main>
