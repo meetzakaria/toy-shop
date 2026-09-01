@@ -90,3 +90,112 @@ body {
 .animate-fade-up {
   animation: fade-up 0.35s ease-out both;
 }
+
+/* ------------------------------------------------------------------
+   Scroll behaviour
+   ------------------------------------------------------------------ */
+
+/* Revealed on entry by an IntersectionObserver, which sets data-revealed
+   once and disconnects — nothing re-hides on the way back up. */
+[data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+[data-reveal][data-revealed="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* A card that leans toward the pointer. The lean is two custom properties
+   written on pointermove, so the easing lives here and the card returns to
+   rest on its own when the pointer leaves. Only promoted to its own layer
+   while it is actually being tilted. */
+.tilt-card {
+  position: relative;
+  border-radius: 0.75rem;
+  transform: perspective(1000px) rotateX(calc(var(--tilt-x, 0) * 1deg))
+    rotateY(calc(var(--tilt-y, 0) * 1deg));
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tilt-card[data-tilting="true"] {
+  transition: transform 0.12s linear;
+  will-change: transform;
+}
+
+.tilt-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  mix-blend-mode: soft-light;
+  background: radial-gradient(
+    16rem 16rem at var(--sheen-x, 50%) var(--sheen-y, 50%),
+    rgb(255 255 255 / 0.65),
+    rgb(255 255 255 / 0) 62%
+  );
+}
+
+.tilt-card[data-tilting="true"] .tilt-sheen {
+  opacity: 1;
+}
+
+/* The pinned showcase. `svh` keeps a phone's address bar from resizing the
+   stage mid-scroll, but it only reached Safari in 15.4 — so a plain `vh`
+   value is declared first, or the whole section collapses on an older
+   phone. Each step also gets less scroll distance on a small screen. */
+.arc-track {
+  height: calc(100vh + var(--steps, 5) * 30vh);
+}
+
+.arc-stage {
+  height: 100vh;
+}
+
+@supports (height: 100svh) {
+  .arc-track {
+    height: calc(100svh + var(--steps, 5) * 30svh);
+  }
+
+  .arc-stage {
+    height: 100svh;
+  }
+}
+
+@media (min-width: 640px) {
+  .arc-track {
+    height: calc(100vh + var(--steps, 5) * 38vh);
+  }
+
+  @supports (height: 100svh) {
+    .arc-track {
+      height: calc(100svh + var(--steps, 5) * 38svh);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .tilt-card {
+    transform: none;
+  }
+}

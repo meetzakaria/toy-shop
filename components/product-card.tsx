@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { CartIcon } from "@/components/icons";
+import { Reveal } from "@/components/motion";
 import { ProductMedia } from "@/components/product-art";
+import { ScrollSpin, TiltCard } from "@/components/scroll-fx";
 import { Rating } from "@/components/rating";
 import { discountPercent } from "@/lib/data/products";
 import { useCart } from "@/lib/cart-context";
@@ -14,20 +16,25 @@ export function ProductCard({ product }: { product: Product }) {
   const discount = discountPercent(product);
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-line bg-white transition hover:border-primary/50 hover:shadow-lg">
+    <TiltCard className="h-full">
+      <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-line bg-white transition hover:border-primary/50 hover:shadow-lg">
       <Link
         href={`/products/${product.slug}`}
         className="relative block bg-surface"
         aria-label={product.name}
       >
-        <ProductMedia
-          slug={product.slug}
-          category={product.category}
-          name={product.name}
-          image={product.image}
-          color={product.colors[0]}
-          className="aspect-square w-full transition duration-300 group-hover:scale-[1.03]"
-        />
+        {/* A couple of degrees, no more: enough for the tile to feel alive
+            as it crosses the screen, not enough to fight reading the price. */}
+        <ScrollSpin turns={0.018} lift={5} scale={0.03} className="w-full">
+          <ProductMedia
+            slug={product.slug}
+            category={product.category}
+            name={product.name}
+            image={product.image}
+            color={product.colors[0]}
+            className="aspect-square w-full transition duration-300 group-hover:scale-[1.03]"
+          />
+        </ScrollSpin>
         <div className="absolute left-2.5 top-2.5 flex flex-col gap-1.5">
           {discount > 0 && (
             <span className="rounded-md bg-danger px-2 py-0.5 text-[11px] font-bold text-white">
@@ -84,7 +91,8 @@ export function ProductCard({ product }: { product: Product }) {
           </button>
         </div>
       </div>
-    </article>
+      </article>
+    </TiltCard>
   );
 }
 
@@ -104,8 +112,11 @@ export function ProductGrid({
 
   return (
     <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${gridCols}`}>
-      {products.map((product) => (
-        <ProductCard key={product.slug} product={product} />
+      {products.map((product, index) => (
+        // Staggered by column, so a row arrives as a sweep rather than a jolt.
+        <Reveal key={product.slug} delay={(index % 4) * 70} className="h-full">
+          <ProductCard product={product} />
+        </Reveal>
       ))}
     </div>
   );

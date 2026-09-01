@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight } from "@/components/icons";
+import { Parallax } from "@/components/motion";
 import { ProductMedia } from "@/components/product-art";
 import { formatPrice } from "@/lib/format";
 
@@ -79,11 +80,20 @@ export function HeroSlider({ slides }: { slides: Slide[] }) {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
-            <ProductMedia
-              slug={slide.slug}
-              category={slide.category}
-              className="mx-auto aspect-square w-full max-w-xs"
-            />
+            {/* Centre-relative, so the art sits square on load and only
+                leans once the hero starts leaving the screen. */}
+            <Parallax
+              speed={0.07}
+              rotate={7}
+              scale={0.05}
+              className="mx-auto w-full max-w-xs"
+            >
+              <ProductMedia
+                slug={slide.slug}
+                category={slide.category}
+                className="aspect-square w-full"
+              />
+            </Parallax>
           </div>
 
           <div className="absolute bottom-4 left-6 flex gap-1.5 sm:left-9">

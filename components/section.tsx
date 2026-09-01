@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "@/components/icons";
+import { Reveal } from "@/components/motion";
 
 export function SectionHeading({
   title,
@@ -13,7 +14,7 @@ export function SectionHeading({
   linkLabel?: string;
 }) {
   return (
-    <div className="mb-5 flex items-end justify-between gap-4">
+    <Reveal className="mb-5 flex items-end justify-between gap-4">
       <div>
         <h2 className="text-lg font-bold tracking-tight sm:text-xl">{title}</h2>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
@@ -27,7 +28,7 @@ export function SectionHeading({
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       )}
-    </div>
+    </Reveal>
   );
 }
 

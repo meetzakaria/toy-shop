@@ -4,6 +4,7 @@ import { CategoryGrid } from "@/components/category-grid";
 import { HeroSlider, type Slide } from "@/components/hero-slider";
 import { ProductGrid } from "@/components/product-card";
 import { SectionHeading } from "@/components/section";
+import { ShowcaseArc } from "@/components/showcase-arc";
 import { TrustBar } from "@/components/trust-bar";
 import { discountPercent } from "@/lib/data/products";
 import { getHomeData } from "@/lib/rootcart/home";
@@ -125,6 +126,14 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {/* Pinned: the shelf turns while the page holds still. Fed from best
+          sellers, and it renders nothing under three products. */}
+      <ShowcaseArc
+        products={home.bestSellers.products}
+        eyebrow="Most wanted"
+        title="The shelf, turning"
+      />
 
       {home.bestSellers.products.length > 0 && (
         <section className="container-page py-6">

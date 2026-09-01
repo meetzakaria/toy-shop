@@ -5,6 +5,7 @@ import { CartDrawer } from "@/components/cart-drawer";
 import { FloatingActions } from "@/components/floating-actions";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
+import { ScrollProgress } from "@/components/scroll-fx";
 import { CartProvider } from "@/lib/cart-context";
 import { getCategories } from "@/lib/rootcart/catalog";
 import { getSite, getStoreBrand } from "@/lib/rootcart/site";
@@ -62,6 +63,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html lang="en" className={`${bodyFont.variable} h-full antialiased`}>
+      <head>
+        {/* Reveal-on-scroll starts elements at zero opacity, so without
+            scripting every product grid on the site would be invisible.
+            This puts them back — a storefront has to survive no JavaScript. */}
+        <noscript>
+          <style>{`[data-reveal]{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
+      </head>
       <body className="flex min-h-full flex-col font-sans">
         <StoreProvider
           categories={categories}
@@ -69,6 +78,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           credentials={publishableCredentials()}
         >
           <CartProvider>
+            <ScrollProgress />
             <Header />
             <main className="flex-1">{children}</main>
             <Footer />

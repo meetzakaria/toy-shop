@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { categoryIcons } from "@/components/icons";
+import { ScrollSpin } from "@/components/scroll-fx";
 import { getCategories } from "@/lib/rootcart/catalog";
 
 /**
@@ -35,12 +36,14 @@ export async function CategoryGrid({ compact = false }: { compact?: boolean }) {
             href={`/category/${category.slug}`}
             className="group flex flex-col items-center gap-3 rounded-xl border border-line bg-white p-4 text-center transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md"
           >
-            <span
-              className="grid h-14 w-14 place-items-center rounded-full transition group-hover:scale-105"
-              style={{ backgroundColor: `${category.hue}1a`, color: category.hue }}
-            >
-              <Icon className="h-7 w-7" aria-hidden="true" />
-            </span>
+            <ScrollSpin turns={0.09} lift={5} scale={0.07}>
+              <span
+                className="grid h-14 w-14 place-items-center rounded-full transition group-hover:scale-105"
+                style={{ backgroundColor: `${category.hue}1a`, color: category.hue }}
+              >
+                <Icon className="h-7 w-7" aria-hidden="true" />
+              </span>
+            </ScrollSpin>
             <span className="text-sm font-semibold leading-snug">
               {category.name}
             </span>
