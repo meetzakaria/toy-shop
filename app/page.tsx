@@ -44,6 +44,7 @@ export default async function HomePage() {
     href: `/products/${product.slug}`,
     slug: product.slug,
     category: product.category,
+    image: product.image,
     tint:
       home.categories.find((category) => category.slug === product.category)?.hue ?? "#659900",
   }));

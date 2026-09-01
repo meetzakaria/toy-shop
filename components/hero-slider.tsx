@@ -17,6 +17,14 @@ export type Slide = {
   slug: string;
   category: string;
   tint: string;
+  /**
+   * The seller's own photograph, when they have uploaded one.
+   *
+   * <p>Optional because a store can have products with no image yet, and the hero is the last place
+   * that should render a broken frame — {@link ProductMedia} falls back to the generated art, which
+   * is what every slide showed before this field existed.</p>
+   */
+  image?: string;
 };
 
 export function HeroSlider({ slides }: { slides: Slide[] }) {
@@ -91,6 +99,8 @@ export function HeroSlider({ slides }: { slides: Slide[] }) {
               <ProductMedia
                 slug={slide.slug}
                 category={slide.category}
+                name={slide.title}
+                image={slide.image}
                 className="aspect-square w-full"
               />
             </Parallax>
@@ -135,6 +145,8 @@ export function HeroSlider({ slides }: { slides: Slide[] }) {
               <ProductMedia
                 slug={item.slug}
                 category={item.category}
+                name={item.title}
+                image={item.image}
                 className="ml-auto h-24 w-24 shrink-0 rounded-xl"
               />
             </Link>
