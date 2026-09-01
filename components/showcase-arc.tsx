@@ -39,9 +39,40 @@ export function ShowcaseArc({
   const stageRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const arcRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef(0);
   const geometry = useRef({ spacing: 260, radius: 1200 });
+  // Where the track sits in the document and how much scrolling one card
+  // costs. Read at the start of a gesture rather than every frame.
+  const metrics = useRef({ trackTop: 0, stepPx: 1 });
+  const draggedRef = useRef(false);
   const [active, setActive] = useState(0);
+
+  const steps = Math.max(1, items.length - 1);
+
+  /** Refresh the scroll geometry. One layout read, on demand. */
+  const readMetrics = useCallback(() => {
+    const track = trackRef.current;
+    const stage = stageRef.current;
+    if (!track || !stage) return metrics.current;
+    const rect = track.getBoundingClientRect();
+    const travel = Math.max(1, rect.height - stage.getBoundingClientRect().height);
+    metrics.current = {
+      trackTop: rect.top + window.scrollY,
+      stepPx: travel / steps,
+    };
+    return metrics.current;
+  }, [steps]);
+
+  /** Bring one card to the front by scrolling the page to its position. */
+  const goToIndex = useCallback(
+    (index: number) => {
+      const { trackTop, stepPx } = readMetrics();
+      const clamped = Math.min(steps, Math.max(0, index));
+      window.scrollTo({ top: trackTop + clamped * stepPx, behavior: "smooth" });
+    },
+    [readMetrics, steps],
+  );
 
   const setCardRef = useCallback((index: number, el: HTMLDivElement | null) => {
     cardRefs.current[index] = el;
@@ -65,6 +96,107 @@ export function ShowcaseArc({
     observer.observe(stage);
     return () => observer.disconnect();
   }, []);
+
+  /**
+   * Drag the shelf sideways, with a mouse or a finger.
+   *
+   * The drag does not keep its own position — it scrolls the page, which is
+   * the one thing the arc already follows. That keeps a dragged shelf and a
+   * scrolled shelf in exactly the same state, and means letting go leaves
+   * the page where the gesture left it instead of snapping back.
+   *
+   * `touch-action: pan-y` is what makes this coexist with reading: the
+   * browser still owns vertical swipes, so a finger dragged up the cards
+   * scrolls the page as usual, and only sideways movement reaches here.
+   */
+  useEffect(() => {
+    const el = arcRef.current;
+    if (!el) return;
+
+    let pointerId: number | null = null;
+    let axis: "x" | "y" | null = null;
+    let startX = 0;
+    let startY = 0;
+    let lastX = 0;
+    let lastTime = 0;
+    let velocity = 0;
+    let remainder = 0;
+
+    const finish = () => {
+      if (axis === "x") {
+        const { trackTop, stepPx } = readMetrics();
+        const here = (window.scrollY - trackTop) / stepPx;
+        // A flick carries past the card it was on; a slow drag settles on
+        // whichever card is nearest.
+        const carry = ((-velocity * geometryStep()) / stepPx) * 220;
+        goToIndex(Math.round(here + carry));
+      }
+      if (pointerId !== null && el.hasPointerCapture(pointerId)) {
+        el.releasePointerCapture(pointerId);
+      }
+      pointerId = null;
+      axis = null;
+      velocity = 0;
+      remainder = 0;
+    };
+
+    /** Scroll pixels per pixel of drag, so a card tracks the finger 1:1. */
+    const geometryStep = () =>
+      metrics.current.stepPx / geometry.current.spacing;
+
+    const onDown = (event: PointerEvent) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      pointerId = event.pointerId;
+      axis = null;
+      draggedRef.current = false;
+      startX = lastX = event.clientX;
+      remainder = 0;
+      startY = event.clientY;
+      lastTime = event.timeStamp;
+      velocity = 0;
+      readMetrics();
+    };
+
+    const onMove = (event: PointerEvent) => {
+      if (pointerId !== event.pointerId) return;
+
+      if (axis === null) {
+        const dx = Math.abs(event.clientX - startX);
+        const dy = Math.abs(event.clientY - startY);
+        if (dx < 6 && dy < 6) return;
+        // Vertical wins outright: that gesture belongs to the page.
+        axis = dx > dy ? "x" : "y";
+        if (axis === "x") el.setPointerCapture(event.pointerId);
+      }
+      if (axis !== "x") return;
+
+      const dx = event.clientX - lastX;
+      const dt = Math.max(1, event.timeStamp - lastTime);
+      lastX = event.clientX;
+      lastTime = event.timeStamp;
+      velocity = dx / dt;
+      draggedRef.current = true;
+
+      // Dragging left moves the shelf forward, which is scrolling down.
+      remainder += -dx * geometryStep();
+      const whole = Math.trunc(remainder);
+      if (whole !== 0) {
+        remainder -= whole;
+        window.scrollBy(0, whole);
+      }
+    };
+
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", finish);
+    el.addEventListener("pointercancel", finish);
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", finish);
+      el.removeEventListener("pointercancel", finish);
+    };
+  }, [goToIndex, readMetrics]);
 
   useStickyProgress(trackRef, stageRef, (p) => {
     const { spacing, radius } = geometry.current;
@@ -98,7 +230,8 @@ export function ShowcaseArc({
       el.style.transform = `translate3d(calc(-50% + ${x.toFixed(1)}px), ${dip.toFixed(1)}px, 0) rotate(${((angle * 180) / Math.PI).toFixed(2)}deg) scale(${scale.toFixed(4)})`;
       el.style.opacity = fade.toFixed(3);
       el.style.zIndex = String(200 - Math.round(distance * 20));
-      // Only the card in front should be clickable; the rest are scenery.
+      // Only the front card is a link. The others let the pointer through
+      // to the drag surface underneath, so a drag can start anywhere.
       el.style.pointerEvents = distance < 0.5 ? "auto" : "none";
     }
 
@@ -149,7 +282,18 @@ export function ShowcaseArc({
 
           {/* The arc itself. Cards are absolutely placed and moved by the
               scroll frame; the wrapper only reserves their height. */}
-          <div className="relative mx-auto mt-6 h-[clamp(10.5rem,26vmin,17rem)] sm:mt-10">
+          <div
+            ref={arcRef}
+            onDragStart={(event) => event.preventDefault()}
+            onClickCapture={(event) => {
+              // A drag that ends on the front card must not also open it.
+              if (!draggedRef.current) return;
+              draggedRef.current = false;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            className="relative mx-auto mt-6 h-[clamp(10.5rem,26vmin,17rem)] cursor-grab touch-pan-y select-none active:cursor-grabbing sm:mt-10"
+          >
             {items.map((product, i) => (
               <div
                 key={product.slug}
@@ -207,19 +351,30 @@ export function ShowcaseArc({
             </Link>
           </div>
 
-          <ol className="mt-5 flex items-center justify-center gap-2 sm:mt-7" aria-hidden="true">
+          <ol className="mt-5 flex items-center justify-center gap-2 sm:mt-7">
             {items.map((product, i) => (
-              <li
-                key={product.slug}
-                className={`h-1.5 rounded-full transition-all duration-500 ${
-                  i === active ? "w-7 bg-primary" : "w-1.5 bg-line"
-                }`}
-              />
+              <li key={product.slug} className="flex">
+                <button
+                  type="button"
+                  onClick={() => goToIndex(i)}
+                  aria-label={`Show ${product.name}`}
+                  aria-current={i === active}
+                  className="group grid h-9 place-items-center px-1"
+                >
+                  <span
+                    className={`h-1.5 rounded-full transition-all duration-500 ${
+                      i === active
+                        ? "w-7 bg-primary"
+                        : "w-1.5 bg-line group-hover:w-3 group-hover:bg-primary/50"
+                    }`}
+                  />
+                </button>
+              </li>
             ))}
           </ol>
 
           <p className="mt-4 text-center text-xs text-muted sm:mt-6">
-            Keep scrolling — the shelf turns as you go
+            Drag the shelf sideways, or keep scrolling — it turns either way
           </p>
         </div>
       </div>
